@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Basket EPS - Scores Multi-Terrains</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { 
+            font-family: 'Inter', sans-serif; 
+            touch-action: manipulation; 
+        }
+        .score-font { font-family: 'Arial Black', sans-serif; }
+        
+        button {
+            -webkit-tap-highlight-color: transparent;
+        }
+        button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        button:disabled {
+            opacity: 0.3;
+            filter: grayscale(1);
+            cursor: not-allowed;
+        }
+
+        .gold { background: linear-gradient(135deg, #ffd700, #ffae00); }
+        .silver { background: linear-gradient(135deg, #c0c0c0, #a0a0a0); }
+        .bronze { background: linear-gradient(135deg, #cd7f32, #8b4513); }
+
+        /* Animation pour le score qui change */
+        @keyframes pulse-orange {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); color: #ea580c; }
+            100% { transform: scale(1); }
+        }
+        .score-update { animation: pulse-orange 0.3s ease-out; }
+
+        @media print { 
+            .no-print { display: none !important; }
+            .print-break { page-break-before: always; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-900">
+
+    <!-- Barre de navigation mobile (Tabs) -->
+    <nav class="lg:hidden sticky top-0 z-50 bg-white border-b flex no-print">
+        <button onclick="switchTab('matchs')" id="tab-matchs" class="flex-1 py-4 font-black uppercase text-xs tracking-widest border-b-4 border-orange-600 text-orange-600">
+            Matchs
+        </button>
+        <button onclick="switchTab('classement')" id="tab-classement" class="flex-1 py-4 font-black uppercase text-xs tracking-widest border-b-4 border-transparent text-slate-400">
+            Bilan
+        </button>
+    </nav>
+
+    <div class="max-w-6xl mx-auto p-2 md:p-6">
+        <!-- Header -->
+        <header class="bg-orange-600 text-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] shadow-xl mb-4 md:mb-6 flex flex-col md:flex-row justify-between items-center border-b-4 md:border-b-8 border-orange-800">
+            <div class="text-center md:text-left">
+                <h1 class="text-xl md:text-3xl font-black uppercase italic tracking-tighter">Basket EPS</h1>
+                <p class="text-[8px] md:text-[10px] font-bold opacity-80 uppercase tracking-widest mt-1 text-orange-100">Direct : Scores de tous les terrains</p>
+            </div>
+            <div class="flex gap-2 mt-3 md:mt-0 no-print">
+                <button onclick="window.print()" class="bg-slate-900 text-white px-4 py-2 rounded-full font-black text-[9px] uppercase shadow-lg">Exporter PDF</button>
+                <button onclick="confirmReset()" class="bg-white text-red-600 px-4 py-2 rounded-full font-black text-[9px] uppercase shadow-lg">Reset</button>
+            </div>
+        </header>
+
+        <!-- Live Dashboard des terrains -->
+        <div class="mb-6 sticky top-[60px] lg:top-0 z-40 no-print">
+            <div class="bg-slate-900 text-white p-3 rounded-2xl shadow-2xl border-b-4 border-orange-500 overflow-x-auto">
+                <div class="flex justify-between items-center gap-4 min-w-[500px]">
+                    <div class="flex items-center gap-2 px-3 border-r border-slate-700">
+                        <span class="animate-pulse w-2 h-2 bg-red-500 rounded-full"></span>
+                        <span class="text-[9px] font-black uppercase italic tracking-tighter">Live Terrains</span>
+                    </div>
+                    <div id="live-ticker" class="flex-1 flex justify-around items-center">
+                        <!-- Généré par JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
+            <!-- Zone des Matchs -->
+            <div id="content-matchs" class="lg:col-span-8 space-y-6 md:space-y-8 block">
+                <div id="rotations-container" class="space-y-6 md:space-y-8"></div>
+            </div>
+
+            <!-- Barre latérale de classement (Vue Bureau) -->
+            <div id="content-classement" class="lg:col-span-4 hidden lg:block">
+                <div class="bg-slate-900 rounded-[1.5rem] md:rounded-[2.5rem] p-5 md:p-6 shadow-2xl sticky top-6 border-t-8 border-orange-500">
+                    <h2 class="text-white font-black uppercase text-[10px] mb-6 tracking-widest flex items-center gap-2 italic">
+                        <span class="w-1.5 h-4 bg-orange-500 rounded-full"></span> Classement Général
+                    </h2>
+                    <div id="ranking-list" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CLASSEMENT GÉNÉRAL FINAL -->
+        <div class="mt-12 mb-20 print-break">
+            <div class="bg-white rounded-[2rem] p-6 md:p-10 shadow-2xl border-4 border-slate-900">
+                <div class="text-center mb-10">
+                    <h2 class="text-3xl md:text-5xl font-black uppercase italic tracking-tighter text-slate-900 mb-2">Bilan Général Final</h2>
+                    <div class="h-2 w-24 bg-orange-500 mx-auto rounded-full"></div>
+                </div>
+                <div id="podium-container" class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 items-end"></div>
+                <div id="tournament-stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12"></div>
+                <div class="overflow-hidden rounded-2xl border border-slate-200">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-900 text-white uppercase text-[10px] font-black italic">
+                            <tr>
+                                <th class="p-4">Rang</th>
+                                <th class="p-4">Équipe</th>
+                                <th class="p-4 text-center">RAQ</th>
+                                <th class="p-4 text-center">HR</th>
+                                <th class="p-4 text-center">Loupés</th>
+                                <th class="p-4 text-center text-red-400">Fautes</th>
+                                <th class="p-4 text-right">Points</th>
+                            </tr>
+                        </thead>
+                        <tbody id="final-table-body" class="text-sm font-bold text-slate-700"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="h-10 lg:hidden"></div>
+
+    <script>
+        const ROTATIONS = [
+            { tour: 1, arbitres: "7 & 8", matchs: [{ a: 1, b: 2, t: "A" }, { a: 3, b: 4, t: "B" }, { a: 5, b: 6, t: "C" }] },
+            { tour: 2, arbitres: "4 & 6", matchs: [{ a: 7, b: 8, t: "A" }, { a: 1, b: 3, t: "B" }, { a: 2, b: 5, t: "C" }] },
+            { tour: 3, arbitres: "3 & 8", matchs: [{ a: 4, b: 6, t: "A" }, { a: 2, b: 7, t: "B" }, { a: 1, b: 5, t: "C" }] },
+            { tour: 4, arbitres: "1 & 2", matchs: [{ a: 3, b: 8, t: "A" }, { a: 4, b: 5, t: "B" }, { a: 6, b: 7, t: "C" }] }
+        ];
+
+        let tournamentData = {};
+        let timers = {};
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function switchTab(tab) {
+            const mContent = document.getElementById('content-matchs');
+            const cContent = document.getElementById('content-classement');
+            const mTab = document.getElementById('tab-matchs');
+            const cTab = document.getElementById('tab-classement');
+            if (tab === 'matchs') {
+                mContent.classList.remove('hidden');
+                mContent.classList.add('block');
+                cContent.classList.remove('block');
+                cContent.classList.add('hidden');
+                mTab.className = "flex-1 py-4 font-black uppercase text-xs tracking-widest border-b-4 border-orange-600 text-orange-600";
+                cTab.className = "flex-1 py-4 font-black uppercase text-xs tracking-widest border-b-4 border-transparent text-slate-400";
+            } else {
+                mContent.classList.remove('block');
+                mContent.classList.add('hidden');
+                cContent.classList.remove('hidden');
+                cContent.classList.add('block');
+                cTab.className = "flex-1 py-4 font-black uppercase text-xs tracking-widest border-b-4 border-orange-600 text-orange-600";
+                mTab.className = "flex-1 py-4 font-black uppercase text-xs tracking-widest border-b-4 border-transparent text-slate-400";
+            }
+        }
+
+        function init() {
+            const saved = localStorage.getItem('basket_eps_chrono_v2');
+            if (saved) {
+                tournamentData = JSON.parse(saved);
+                // Redémarrer les timers si nécessaire
+                Object.keys(tournamentData).forEach(id => {
+                    if (tournamentData[id].status === 'running') {
+                        startTimerLoop(id);
+                    }
+                });
+            } else {
+                ROTATIONS.forEach((r, rIdx) => {
+                    r.matchs.forEach((m, mIdx) => {
+                        const id = `${rIdx}_${mIdx}`;
+                        tournamentData[id] = {
+                            scores: { a: 0, b: 0, details: { 
+                                a: { raq: 0, hr: 0, lou: 0, fau: 0 }, 
+                                b: { raq: 0, hr: 0, lou: 0, fau: 0 } 
+                            }},
+                            history: [],
+                            status: 'idle', 
+                            timeLeft: 300 
+                        };
+                    });
+                });
+                save();
+            }
+            render();
+        }
+
+        function save() {
+            localStorage.setItem('basket_eps_chrono_v2', JSON.stringify(tournamentData));
+        }
+
+        function toggleTimer(id) {
+            const m = tournamentData[id];
+            if (m.status === 'idle') {
+                m.status = 'running';
+                startTimerLoop(id);
+            } else if (m.status === 'running') {
+                m.status = 'finished';
+                clearInterval(timers[id]);
+            }
+            save();
+            render();
+        }
+
+        function startTimerLoop(id) {
+            if (timers[id]) clearInterval(timers[id]);
+            timers[id] = setInterval(() => {
+                const m = tournamentData[id];
+                if (m.status !== 'running') {
+                    clearInterval(timers[id]);
+                    return;
+                }
+                m.timeLeft--;
+                if (m.timeLeft <= 0) {
+                    m.timeLeft = 0;
+                    m.status = 'finished';
+                    clearInterval(timers[id]);
+                }
+                save();
+                updateTimerUI(id);
+                if (m.status === 'finished') render();
+            }, 1000);
+        }
+
+        function updateTimerUI(id) {
+            const timerEl = document.getElementById(`timer-${id}`);
+            if (timerEl) {
+                timerEl.innerText = formatTime(tournamentData[id].timeLeft);
+            }
+            renderLiveTicker();
+        }
+
+        function addPoint(id, team, type) {
+            const m = tournamentData[id];
+            if (m.status !== 'running') return;
+            
+            if (type === 'fau') {
+                const opponent = (team === 'a' ? 'b' : 'a');
+                m.scores.details[team].fau++;
+                m.scores[opponent] += 1;
+            } else {
+                const pointsMap = { 'raq': 100, 'hr': 10, 'lou': 1 };
+                m.scores.details[team][type]++;
+                m.scores[team] += pointsMap[type];
+            }
+            
+            m.history.push({ team, type });
+            save();
+            render();
+        }
+
+        function undoTeam(id, team) {
+            const m = tournamentData[id];
+            if (m.status !== 'running') return;
+            const lastIdx = [...m.history].reverse().findIndex(action => action.team === team);
+            if (lastIdx === -1) return;
+            const actualIdx = m.history.length - 1 - lastIdx;
+            const action = m.history.splice(actualIdx, 1)[0];
+            
+            if (action.type === 'fau') {
+                const opponent = (team === 'a' ? 'b' : 'a');
+                m.scores.details[team].fau--;
+                m.scores[opponent] -= 1;
+            } else {
+                const pointsMap = { 'raq': 100, 'hr': 10, 'lou': 1 };
+                m.scores.details[action.team][action.type]--;
+                m.scores[action.team] -= pointsMap[action.type];
+            }
+            save();
+            render();
+        }
+
+        function renderLiveTicker() {
+            let activeRotationIdx = ROTATIONS.findIndex((r, rIdx) => 
+                r.matchs.some((m, mIdx) => tournamentData[`${rIdx}_${mIdx}`].status === 'running')
+            );
+            
+            if (activeRotationIdx === -1) {
+                activeRotationIdx = ROTATIONS.findIndex((r, rIdx) => 
+                    r.matchs.some((m, mIdx) => tournamentData[`${rIdx}_${mIdx}`].status === 'idle')
+                );
+            }
+            
+            if (activeRotationIdx === -1) activeRotationIdx = ROTATIONS.length - 1;
+
+            const ticker = document.getElementById('live-ticker');
+            const rotation = ROTATIONS[activeRotationIdx];
+            
+            ticker.innerHTML = rotation.matchs.map((m, mIdx) => {
+                const id = `${activeRotationIdx}_${mIdx}`;
+                const data = tournamentData[id];
+                const statusColor = data.status === 'running' ? 'text-green-400' : data.status === 'finished' ? 'text-red-500' : 'text-slate-500';
+                
+                return `
+                    <div class="flex flex-col items-center">
+                        <div class="text-[7px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Terrain ${m.t}</div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-[9px] font-bold text-slate-300">Éq ${m.a}</span>
+                            <span class="text-sm font-black score-font text-orange-500">${data.scores.a}</span>
+                            <span class="text-[8px] font-black text-slate-600">-</span>
+                            <span class="text-sm font-black score-font text-orange-500">${data.scores.b}</span>
+                            <span class="text-[9px] font-bold text-slate-300">Éq ${m.b}</span>
+                        </div>
+                        <div class="text-[7px] font-black ${statusColor} italic mt-0.5">${data.status === 'running' ? formatTime(data.timeLeft) : data.status.toUpperCase()}</div>
+                    </div>
+                `;
+            }).join('<div class="w-px h-8 bg-slate-800"></div>');
+        }
+
+        function render() {
+            const container = document.getElementById('rotations-container');
+            container.innerHTML = ROTATIONS.map((r, rIdx) => `
+                <div class="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-4 md:mb-6 border-b pb-3">
+                        <span class="font-black text-slate-800 uppercase text-[10px] md:text-sm italic">Rotation ${r.tour}</span>
+                        <span class="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-[8px] md:text-[10px] font-black uppercase italic border border-orange-200">Arbitres: ${r.arbitres}</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                        ${r.matchs.map((m, mIdx) => {
+                            const id = `${rIdx}_${mIdx}`;
+                            const data = tournamentData[id];
+                            const isRunning = data.status === 'running';
+                            
+                            return `
+                                <div class="p-4 rounded-[1.5rem] border-2 ${isRunning ? 'border-orange-400 bg-orange-50/30' : 'border-slate-100 bg-slate-50/50'}">
+                                    <div class="flex justify-between items-center mb-4">
+                                        <div class="flex gap-2">
+                                            <span class="text-[8px] font-black px-2 py-0.5 rounded bg-slate-900 text-white uppercase italic">Terrain ${m.t}</span>
+                                            <span id="timer-${id}" class="text-[8px] font-black px-2 py-0.5 rounded ${data.status === 'finished' ? 'bg-red-600 text-white' :'bg-blue-100 text-blue-700'} uppercase italic border border-blue-200">${formatTime(data.timeLeft)}</span>
+                                        </div>
+                                        <div class="no-print">
+                                            ${data.status === 'idle' ? `<button onclick="toggleTimer('${id}')" class="bg-green-600 text-white text-[8px] px-3 py-1 rounded-full font-black uppercase">Départ</button>` : 
+                                              data.status === 'running' ? `<button onclick="toggleTimer('${id}')" class="bg-red-600 text-white text-[8px] px-3 py-1 rounded-full font-black uppercase">Stop</button>` : 
+                                              `<span class="text-red-600 text-[8px] font-black uppercase italic">Fini</span>`}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex justify-around items-center mb-6">
+                                        <div class="text-center">
+                                            <div class="text-[8px] text-slate-400 font-bold uppercase mb-1 italic">Éq ${m.a}</div>
+                                            <div class="text-2xl font-black text-slate-800 score-font tracking-tighter">${data.scores.a}</div>
+                                        </div>
+                                        <div class="text-slate-300 text-[10px] font-black italic text-center leading-none">VS<br><span class="text-[8px] font-bold opacity-40">F: ${data.scores.details.a.fau}-${data.scores.details.b.fau}</span></div>
+                                        <div class="text-center">
+                                            <div class="text-[8px] text-slate-400 font-bold uppercase mb-1 italic">Éq ${m.b}</div>
+                                            <div class="text-2xl font-black text-slate-800 score-font tracking-tighter">${data.scores.b}</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-3 no-print">
+                                        <div class="space-y-2">
+                                            <button ${!isRunning ? 'disabled' : ''} onclick="addPoint('${id}','a','raq')" class="w-full h-9 bg-orange-600 text-white text-[8px] rounded-lg font-black uppercase shadow active:bg-orange-700">RAQ +100</button>
+                                            <button ${!isRunning ? 'disabled' : ''} onclick="addPoint('${id}','a','hr')" class="w-full h-9 bg-blue-600 text-white text-[8px] rounded-lg font-black uppercase shadow active:bg-blue-700">HR +10</button>
+                                            <button ${!isRunning ? 'disabled' : ''} onclick="addPoint('${id}','a','lou')" class="w-full h-9 bg-slate-400 text-white text-[8px] rounded-lg font-black uppercase shadow active:bg-slate-500">Loupé +1</button>
+                                            <button ${!isRunning ? 'disabled' : ''} onclick="addPoint('${id}','a','fau')" class="w-full h-11 bg-red-600 text-white text-[9px] rounded-lg font-black uppercase shadow-inner active:bg-red-800 border-2 border-red-900 ring-2 ring-red-600/20">FAUTE</button>
+                                            <button ${!isRunning ? 'disabled' : ''} onclick="undoTeam('${id}','a')" class="w-full h-6 flex items-center justify-center bg-red-50 text-red-400 rounded-md border border-red-100 text-[8px] font-bold italic">ANNULER</button>
+                                        </div>
+                                        <div class="space-y-2">
+                                            <button ${!isRunning ? 'disabled' : ''} onclick="addPoint('${id}','b','raq')" class="w-full h-9 bg-orange-600 text-white text-[8px] rounded-lg font-black uppercase shadow active:bg-orange-700">RAQ +100</button>
+                                            <button ${!isRunning ? 'disabled' : ''} onclick="addPoint('${id}','b','hr')" class="w-full h-9 bg-blue-600 text-white text-[8px] rounded-lg font-black uppercase shadow active:bg-blue-700">HR +10</button>
+                                            <button ${!isRunning ? 'disabled' : ''} onclick="addPoint('${id}','b','lou')" class="w-full h-9 bg-slate-400 text-white text-[8px] rounded-lg font-black uppercase shadow active:bg-slate-500">Loupé +1</button>
+                                            <button ${!isRunning ? 'disabled' : ''} onclick="addPoint('${id}','b','fau')" class="w-full h-11 bg-red-600 text-white text-[9px] rounded-lg font-black uppercase shadow-inner active:bg-red-800 border-2 border-red-900 ring-2 ring-red-600/20">FAUTE</button>
+                                            <button ${!isRunning ? 'disabled' : ''} onclick="undoTeam('${id}','b')" class="w-full h-6 flex items-center justify-center bg-red-50 text-red-400 rounded-md border border-red-100 text-[8px] font-bold italic">ANNULER</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+            renderRanking();
+            renderLiveTicker();
+        }
+
+        function renderRanking() {
+            const stats = {};
+            let globalTotal = 0, globalRaq = 0, globalHr = 0, globalLou = 0, globalFau = 0;
+
+            for (let i = 1; i <= 8; i++) {
+                stats[i] = { total: 0, raq: 0, hr: 0, lou: 0, fau: 0, matchsJous: 0 };
+            }
+
+            Object.entries(tournamentData).forEach(([key, val]) => {
+                const [rIdx, mIdx] = key.split('_').map(Number);
+                const config = ROTATIONS[rIdx].matchs[mIdx];
+                ['a', 'b'].forEach(side => {
+                    const tid = config[side];
+                    stats[tid].total += val.scores[side];
+                    stats[tid].raq += val.scores.details[side].raq;
+                    stats[tid].hr += val.scores.details[side].hr;
+                    stats[tid].lou += val.scores.details[side].lou;
+                    stats[tid].fau += val.scores.details[side].fau;
+                    if (val.status === 'finished') stats[tid].matchsJous++;
+                    
+                    globalTotal += val.scores[side];
+                    globalRaq += val.scores.details[side].raq;
+                    globalHr += val.scores.details[side].hr;
+                    globalLou += val.scores.details[side].lou;
+                    globalFau += val.scores.details[side].fau;
+                });
+            });
+
+            const sorted = Object.keys(stats).map(k => ({ id: k, ...stats[k] })).sort((a, b) => b.total - a.total);
+
+            // Classement latéral
+            document.getElementById('ranking-list').innerHTML = sorted.map((t, idx) => `
+                <div class="bg-slate-800 p-3 rounded-xl border border-slate-700/50 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded flex items-center justify-center text-[8px] font-black ${idx === 0 ? 'bg-orange-500 text-white' : 'bg-slate-700 text-slate-400'}">${idx + 1}</span>
+                        <span class="text-white font-black text-[10px] uppercase italic">Éq ${t.id}</span>
+                    </div>
+                    <span class="text-orange-500 font-black text-sm score-font tracking-tighter">${t.total}</span>
+                </div>
+            `).join('');
+
+            // Podium Final
+            const p1 = sorted[0], p2 = sorted[1], p3 = sorted[2];
+            document.getElementById('podium-container').innerHTML = `
+                <div class="order-2 md:order-1 flex flex-col items-center">
+                    <div class="silver w-20 h-20 rounded-full flex items-center justify-center border-4 border-white shadow-xl mb-4 text-white font-black text-2xl">2</div>
+                    <div class="bg-slate-50 w-full p-4 rounded-2xl border-2 border-slate-200 text-center shadow-lg">
+                        <div class="text-[9px] font-black text-slate-400 uppercase italic">Équipe ${p2.id}</div>
+                        <div class="text-xl font-black text-slate-900 score-font">${p2.total} pts</div>
+                    </div>
+                </div>
+                <div class="order-1 md:order-2 flex flex-col items-center transform scale-110 -translate-y-4">
+                    <div class="gold w-28 h-28 rounded-full flex items-center justify-center border-8 border-white shadow-2xl mb-4 text-white font-black text-4xl">1</div>
+                    <div class="bg-slate-900 w-full p-6 rounded-3xl border-4 border-orange-500 text-center shadow-2xl">
+                        <div class="text-[10px] font-black text-orange-400 uppercase italic">Champions</div>
+                        <div class="text-3xl font-black text-white score-font">Éq ${p1.id}</div>
+                        <div class="text-lg font-black text-orange-500 mt-1">${p1.total} pts</div>
+                    </div>
+                </div>
+                <div class="order-3 md:order-3 flex flex-col items-center">
+                    <div class="bronze w-20 h-20 rounded-full flex items-center justify-center border-4 border-white shadow-xl mb-4 text-white font-black text-2xl">3</div>
+                    <div class="bg-slate-50 w-full p-4 rounded-2xl border-2 border-slate-200 text-center shadow-lg">
+                        <div class="text-[9px] font-black text-slate-400 uppercase italic">Équipe ${p3.id}</div>
+                        <div class="text-xl font-black text-slate-900 score-font">${p3.total} pts</div>
+                    </div>
+                </div>
+            `;
+
+            // Stats globales
+            document.getElementById('tournament-stats').innerHTML = [
+                { label: 'Points Totaux', val: globalTotal, color: 'text-orange-600' },
+                { label: 'Récup. (RAQ)', val: globalRaq, color: 'text-blue-600' },
+                { label: 'Hors-Raquettes', val: globalHr, color: 'text-green-600' },
+                { label: 'Total Fautes', val: globalFau, color: 'text-red-600' }
+            ].map(s => `
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center">
+                    <div class="text-[7px] font-black text-slate-400 uppercase mb-1 tracking-widest">${s.label}</div>
+                    <div class="${s.color} text-lg font-black score-font italic">${s.val}</div>
+                </div>
+            `).join('');
+
+            // Tableau complet
+            document.getElementById('final-table-body').innerHTML = sorted.map((t, idx) => `
+                <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} border-b border-slate-100">
+                    <td class="p-4 font-black italic text-slate-400">#${idx + 1}</td>
+                    <td class="p-4 font-black">Équipe ${t.id}</td>
+                    <td class="p-4 text-center font-black text-orange-500">${t.raq}</td>
+                    <td class="p-4 text-center font-black text-blue-500">${t.hr}</td>
+                    <td class="p-4 text-center font-black text-slate-400">${t.lou}</td>
+                    <td class="p-4 text-center font-black text-red-600">${t.fau}</td>
+                    <td class="p-4 text-right font-black text-slate-900 score-font text-lg">${t.total}</td>
+                </tr>
+            `).join('');
+        }
+
+        function confirmReset() {
+            if (confirm("🚨 ATTENTION : Tout effacer ?")) {
+                Object.values(timers).forEach(clearInterval);
+                localStorage.removeItem('basket_eps_chrono_v2');
+                location.reload();
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
